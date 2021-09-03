@@ -301,7 +301,7 @@ func TestFindUsersUnknownError(t *testing.T) {
 			OrderBy:    111111,
 		},
 		IsError:      true,
-		ErrorMessage: "not json",
+		ErrorMessage: "bad url",
 	}
 
 	client := &SearchClient{
@@ -312,6 +312,36 @@ func TestFindUsersUnknownError(t *testing.T) {
 	_, err := client.FindUsers(tc.Request)
 
 	if err == nil {
-		t.Errorf("Unexpected success with bad JSON")
+		t.Errorf(tc.ErrorMessage)
+	}
+}
+
+func TestFindUsersInternalServerError(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "bachok potik", http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	tc := TestCase{
+		Request: SearchRequest{
+			Limit:      1111,
+			Offset:     1111,
+			Query:      "11111",
+			OrderField: "1111",
+			OrderBy:    111111,
+		},
+		IsError:      true,
+		ErrorMessage: "not json",
+	}
+
+	client := &SearchClient{
+		AccessToken: "kek",
+		URL:         ts.URL,
+	}
+
+	_, err := client.FindUsers(tc.Request)
+
+	if err == nil {
+		t.Errorf(tc.ErrorMessage)
 	}
 }
