@@ -37,6 +37,12 @@ type Dataset struct {
 	} `xml:"row"`
 }
 
+type TestCase struct {
+	Request      SearchRequest
+	IsError      bool
+	ErrorMessage string
+}
+
 var dataset Dataset
 
 func TestMain(m *testing.M) {
@@ -63,6 +69,11 @@ func TestMain(m *testing.M) {
 }
 
 func SearchServer(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("AccessToken") == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	query := r.FormValue("query")
 	var result []User
 	for _, row := range dataset.Row {
@@ -95,21 +106,59 @@ func TestFindUsers(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(SearchServer))
 	defer ts.Close()
 
-	request := SearchRequest{
-		Limit:      12,
-		Offset:     0,
-		Query:      "Dillard",
-		OrderField: "Id",
-		OrderBy:    OrderByAsc,
+	testCases := []TestCase{
+		TestCase{
+			Request: SearchRequest{
+				Limit:      12,
+				Offset:     0,
+				Query:      "Hilda",
+				OrderField: "Id",
+				OrderBy:    OrderByAsc,
+			},
+			IsError:      false,
+			ErrorMessage: "",
+		},
 	}
+
 	client := &SearchClient{
 		AccessToken: "lol",
 		URL:         ts.URL,
 	}
 
-	result, err := client.FindUsers(request)
+	for _, tc := range testCases {
+		result, err := client.FindUsers(tc.Request)
 
-	if err != nil {
-		t.Error(err, result)
+		if err != nil {
+			t.Error(err, result)
+		}
+	}
+
+}
+
+func TestFindUsersStatusUnauthorized(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(SearchServer))
+	defer ts.Close()
+
+	tc := TestCase{
+		Request: SearchRequest{
+			Limit:      12,
+			Offset:     0,
+			Query:      "Hilda",
+			OrderField: "Id",
+			OrderBy:    OrderByAsc,
+		},
+		IsError:      true,
+		ErrorMessage: "",
+	}
+
+	client := &SearchClient{
+		AccessToken: "",
+		URL:         ts.URL,
+	}
+
+	_, err := client.FindUsers(tc.Request)
+
+	if err == nil {
+		t.Errorf("Unexpected success with auth")
 	}
 }
