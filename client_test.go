@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 type Dataset struct {
@@ -107,13 +108,68 @@ func TestFindUsers(t *testing.T) {
 	defer ts.Close()
 
 	testCases := []TestCase{
-		TestCase{
+		{
 			Request: SearchRequest{
 				Limit:      12,
 				Offset:     0,
 				Query:      "Hilda",
 				OrderField: "Id",
 				OrderBy:    OrderByAsc,
+			},
+			IsError:      false,
+			ErrorMessage: "",
+		},
+		{
+			Request: SearchRequest{
+				Limit:      -1,
+				Offset:     0,
+				Query:      "Hilda",
+				OrderField: "Id",
+				OrderBy:    OrderByAsc,
+			},
+			IsError:      true,
+			ErrorMessage: "Limit must be >= than 0",
+		},
+		{
+			Request: SearchRequest{
+				Limit:      2,
+				Offset:     -1,
+				Query:      "Hilda",
+				OrderField: "Id",
+				OrderBy:    OrderByAsc,
+			},
+			IsError:      true,
+			ErrorMessage: "Offset must be >= 0",
+		},
+		{
+			Request: SearchRequest{
+				Limit:      26,
+				Offset:     0,
+				Query:      "Hilda",
+				OrderField: "Id",
+				OrderBy:    OrderByAsc,
+			},
+			IsError:      false,
+			ErrorMessage: "",
+		},
+		{
+			Request: SearchRequest{
+				Limit:      0,
+				Offset:     0,
+				Query:      "Hilda",
+				OrderField: "Id",
+				OrderBy:    OrderByAsc,
+			},
+			IsError:      false,
+			ErrorMessage: "",
+		},
+		{
+			Request: SearchRequest{
+				Limit:      1000,
+				Offset:     0,
+				Query:      "",
+				OrderField: "",
+				OrderBy:    0,
 			},
 			IsError:      false,
 			ErrorMessage: "",
@@ -126,10 +182,10 @@ func TestFindUsers(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		result, err := client.FindUsers(tc.Request)
+		_, err := client.FindUsers(tc.Request)
 
-		if err != nil {
-			t.Error(err, result)
+		if err != nil && !tc.IsError {
+			t.Error(err, tc.ErrorMessage)
 		}
 	}
 
@@ -160,5 +216,102 @@ func TestFindUsersStatusUnauthorized(t *testing.T) {
 
 	if err == nil {
 		t.Errorf("Unexpected success with auth")
+	}
+}
+
+func TestFindUsersCannotUnpackJson(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("NotJSON"))
+	}))
+	defer ts.Close()
+
+	tc := TestCase{
+		Request: SearchRequest{
+			Limit:      1111,
+			Offset:     1111,
+			Query:      "11111",
+			OrderField: "1111",
+			OrderBy:    111111,
+		},
+		IsError:      true,
+		ErrorMessage: "not json",
+	}
+
+	client := &SearchClient{
+		AccessToken: "kek",
+		URL:         ts.URL,
+	}
+
+	_, err := client.FindUsers(tc.Request)
+
+	if err == nil {
+		t.Errorf("Unexpected success with bad JSON")
+	}
+}
+
+func TestFindUsersTimeout(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(2 * time.Second)
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(""))
+	}))
+	defer ts.Close()
+
+	tc := TestCase{
+		Request: SearchRequest{
+			Limit:      1111,
+			Offset:     1111,
+			Query:      "11111",
+			OrderField: "1111",
+			OrderBy:    111111,
+		},
+		IsError:      true,
+		ErrorMessage: "not json",
+	}
+
+	client := &SearchClient{
+		AccessToken: "kek",
+		URL:         ts.URL,
+	}
+
+	_, err := client.FindUsers(tc.Request)
+
+	if err == nil {
+		t.Errorf("Unexpected success with bad JSON")
+	}
+}
+
+func TestFindUsersUnknownError(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(""))
+	}))
+	defer ts.Close()
+
+	tc := TestCase{
+		Request: SearchRequest{
+			Limit:      1111,
+			Offset:     1111,
+			Query:      "11111",
+			OrderField: "1111",
+			OrderBy:    111111,
+		},
+		IsError:      true,
+		ErrorMessage: "not json",
+	}
+
+	client := &SearchClient{
+		AccessToken: "kek",
+		URL:         "ftp://192.168.1.1",
+	}
+
+	_, err := client.FindUsers(tc.Request)
+
+	if err == nil {
+		t.Errorf("Unexpected success with bad JSON")
 	}
 }
