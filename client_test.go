@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -93,12 +92,8 @@ func SearchServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(io.Discard, "offset: %v\n", offset)
-
 	query := r.FormValue("query")
 	orderField := r.FormValue("order_field")
-
-	fmt.Fprintf(io.Discard, "orderField: %v\n", orderField)
 
 	orderBy, err := strconv.Atoi(r.FormValue("order_by"))
 	if err != nil {
@@ -106,8 +101,6 @@ func SearchServer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
-
-	fmt.Fprintf(io.Discard, "orderBy: %v\n", orderBy)
 
 	var result []User
 	for _, row := range dataset.Row {
