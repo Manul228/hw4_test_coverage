@@ -1,14 +1,94 @@
 package main
 
 import (
+	"encoding/json"
+	"encoding/xml"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 )
 
+type Dataset struct {
+	XMLName xml.Name `xml:"root"`
+	Text    string   `xml:",chardata"`
+	Row     []struct {
+		Text          string `xml:",chardata"`
+		ID            int    `xml:"id"`
+		Guid          string `xml:"guid"`
+		IsActive      bool   `xml:"isActive"`
+		Balance       string `xml:"balance"`
+		Picture       string `xml:"picture"`
+		Age           int    `xml:"age"`
+		EyeColor      string `xml:"eyeColor"`
+		FirstName     string `xml:"first_name"`
+		LastName      string `xml:"last_name"`
+		Gender        string `xml:"gender"`
+		Company       string `xml:"company"`
+		Email         string `xml:"email"`
+		Phone         string `xml:"phone"`
+		Address       string `xml:"address"`
+		About         string `xml:"about"`
+		Registered    string `xml:"registered"`
+		FavoriteFruit string `xml:"favoriteFruit"`
+	} `xml:"row"`
+}
+
+var dataset Dataset
+
+func TestMain(m *testing.M) {
+	file, err := os.Open("dataset.xml")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer file.Close()
+
+	data, err := ioutil.ReadAll(file)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = xml.Unmarshal(data, &dataset)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	os.Exit(m.Run())
+}
+
 func SearchServer(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Unauthorized", http.StatusUnauthorized)
-	return
+	query := r.FormValue("query")
+	var result []User
+	for _, row := range dataset.Row {
+		name := row.FirstName + " " + row.LastName
+		if strings.Contains(name, query) {
+			result = append(result, User{
+				Id:     row.ID,
+				Name:   name,
+				Age:    row.Age,
+				About:  row.About,
+				Gender: row.Gender,
+			})
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	err := enc.Encode(result)
+
+	if err != nil {
+		panic(err)
+	}
+
+	// http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	// return
 }
 
 func TestFindUsers(t *testing.T) {
@@ -29,5 +109,7 @@ func TestFindUsers(t *testing.T) {
 
 	result, err := client.FindUsers(request)
 
-	t.Error(err, result)
+	if err != nil {
+		t.Error(err, result)
+	}
 }
